@@ -1,21 +1,33 @@
-from django.db.models import F, Count
+from django.core.cache import cache
+from django.db.models import F, Count, Sum
+from rest_framework import viewsets, mixins
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import GenericViewSet
 
-from rest_framework import viewsets
-
-from theatre_api.models import Actor, Genre, Play, Performance, Reservation, TheatreHall
+from theatre_api.models import (
+    Actor,
+    Genre,
+    Play,
+    Performance,
+    Reservation,
+    TheatreHall,
+    Ticket,
+)
 
 from theatre_api.serializers import (
     ActorSerializer,
     GenreSerializer,
     PlaySerializer,
-    PerformanceSerializer,
-    ReservationSerializer,
-    TheatreHallSerializer,
-    PlayListSerializer,
     PlayDetailSerializer,
     PlayImageSerializer,
-    PerformanceListSerializer,
+    PlayListSerializer,
+    PerformanceSerializer,
     PerformanceDetailSerializer,
+    PerformanceListSerializer,
+    ReservationSerializer,
+    ReservationListSerializer,
+    TheatreHallSerializer,
+    TicketSerializer,
 )
 
 from theatre_api.permissions import IsAdminOrIfAuthenticatedReadOnly
@@ -74,7 +86,9 @@ class PlayViewSet(viewsets.ModelViewSet):
 
 
 class PerformanceViewSet(viewsets.ModelViewSet):
-    queryset = Performance.objects.all()
+    queryset = Performance.objects.annotate(
+        num_seats=Sum("theatre_hall__seats_in_rows")
+    )
     serializer_class = PerformanceSerializer
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
@@ -83,11 +97,8 @@ class PerformanceViewSet(viewsets.ModelViewSet):
 
         if self.action == "list":
             queryset = queryset.select_related("play", "theatre_hall").annotate(
-                tickets_available=F("theatre_hall__seats_in_rows")
-                * F("theatre_hall__rows")
-                - Count("tickets")
+                tickets_available=F("theatre_hall__num_seats") - Count("tickets")
             )
-
         return queryset
 
     def get_serializer_class(self):
@@ -99,12 +110,59 @@ class PerformanceViewSet(viewsets.ModelViewSet):
         return PerformanceSerializer
 
 
-class ReservationViewSet(viewsets.ModelViewSet):
+class ReservationViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        # This queryset is further filtered based on the current user
+        queryset = self.queryset.filter(user=self.request.user)
+
+        if self.action == "list":
+            # Prefetch related data only when listing reservations
+            queryset = queryset.prefetch_related(
+                "tickets__performance__play", "tickets__performance__theatre_hall"
+            )
+
+        return queryset
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return ReservationListSerializer
+        return ReservationSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class TheatreHallViewSet(viewsets.ModelViewSet):
     queryset = TheatreHall.objects.all()
     serializer_class = TheatreHallSerializer
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+
+
+class TicketViewSet(viewsets.ModelViewSet):
+    queryset = Ticket.objects.all()
+    serializer_class = TicketSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        cache_key = "all_tickets"
+        queryset = cache.get(cache_key)
+        if not queryset:
+            queryset = Ticket.objects.select_related("performance").prefetch_related(
+                "performance__theatre_hall"
+            )
+            cache.set(cache_key, queryset, timeout=60 * 15)  # Cache 15 min
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
