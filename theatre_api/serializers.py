@@ -1,4 +1,6 @@
+from django.db import transaction
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from theatre_api.models import (
     Actor,
@@ -90,6 +92,16 @@ class TicketSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = ("id", "row", "seat", "performance")
 
+    def validate(self, attrs):
+        data = super(TicketSerializer, self).validate(attrs=attrs)
+        Ticket.validate_ticket(
+            attrs["row"],
+            attrs["seat"],
+            attrs["performance"].theatre_hall,
+            ValidationError,
+        )
+        return data
+
 
 class TicketTakenSeatsSerializer(TicketSerializer):
     class Meta:
@@ -139,3 +151,26 @@ class PerformanceDetailSerializer(PerformanceSerializer):
 
 class TicketListSerializer(TicketSerializer):
     performance = PerformanceListSerializer(many=False, read_only=True)
+
+
+class ReservationSerializer(serializers.ModelSerializer):
+    # tickets = TicketSerializer(many=True, read_only=False, allow_empty=False)
+    class Meta:
+        model = Reservation
+        fields = ("id", "created_at", "user", "tickets")
+
+
+class ReservationListSerializer(ReservationSerializer):
+    tickets = TicketListSerializer(many=True, read_only=True)
+
+
+class TicketsDetailSerializer(PlaySerializer):
+    genre = GenreSerializer(many=True, read_only=True)
+    actors = ActorSerializer(many=True, read_only=True)
+    row = TicketSerializer(many=True, read_only=True)
+    seat = TicketSerializer(many=True, read_only=True)
+    performance = PerformanceDetailSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Play
+        fields = ("id", "row", "seat", "performance", "user")
