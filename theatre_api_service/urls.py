@@ -24,4 +24,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/theatre/", include("theatre_api.urls", namespace="theatre_api")),
     path("api/user/", include("user.urls", namespace="user")),
+    path("__debug__/", include("debug_toolbar.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
