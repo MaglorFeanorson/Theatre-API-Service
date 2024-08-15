@@ -125,7 +125,7 @@ class Ticket(models.Model):
 
     class Meta:
         unique_together = ("performance", "row", "seat")
-        ordering = ["row", "seat"]
+        ordering = ["id"]
 
     @staticmethod
     def validate_ticket(row, seat, cinema_hall, error_to_raise):
@@ -159,6 +159,3 @@ class Ticket(models.Model):
         return super(Ticket, self).save(
             force_insert, force_update, using, update_fields
         )
-
-    class Meta:
-        ordering = ["id"]
