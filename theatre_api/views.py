@@ -1,7 +1,7 @@
-from django.core.cache import cache
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from django.db.models import F, Count, Sum
 
-from rest_framework import viewsets, mixins, serializers
+from rest_framework import viewsets, mixins
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import GenericViewSet
@@ -85,6 +85,28 @@ class PlayViewSet(viewsets.ModelViewSet):
             return PlayImageSerializer
 
         return PlaySerializer
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "genres",
+                type={"type": "list", "items": {"type": "number"}},
+                description="Filter by genre id (ex. ?genres=2,5)",
+            ),
+            OpenApiParameter(
+                "actors",
+                type={"type": "list", "items": {"type": "number"}},
+                description="Filter by actor id (ex. ?actors=2,5)",
+            ),
+            OpenApiParameter(
+                "title",
+                type={"type": "list", "items": {"type": "number"}},
+                description="Filter by play title (ex. ?title=fiction)",
+            ),
+        ]
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
 
 class PerformanceViewSet(viewsets.ModelViewSet):
