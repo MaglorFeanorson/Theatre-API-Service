@@ -118,6 +118,7 @@ class Ticket(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="tickets",
+        null=False
     )
 
     def __str__(self):
