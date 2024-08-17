@@ -1,4 +1,4 @@
-FROM python:3.11.9-alpine3.18.6
+FROM python:3.11.9-alpine3.18
 LABEL maintainer="daniilrog17@gmail.com"
 
 ENV PYTHONNBUFFERED=1
